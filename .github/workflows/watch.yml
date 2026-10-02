@@ -1,0 +1,98 @@
+name: Fuchu written exam slot watch
+
+on:
+  # Best-effort fallback. The external scheduler dispatches this workflow every minute.
+  schedule:
+    - cron: '2/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      run_watch:
+        description: 'Run the slot watch once (requires ENABLE_WATCH=true)'
+        type: boolean
+        default: false
+      test_notification:
+        description: 'Create one test notification issue'
+        type: boolean
+        default: false
+      test_email:
+        description: 'Send one test email through the repository notification setting'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: fuchu-written-exam-watch
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: github.event_name == 'workflow_dispatch' && !inputs.run_watch && !inputs.test_notification && !inputs.test_email
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe calendar without credentials
+        run: python3 watch.py --probe
+
+  watch:
+    if: (github.event_name == 'schedule' || (inputs.run_watch && !inputs.test_notification && !inputs.test_email)) && vars.ENABLE_WATCH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check slots and notify
+        id: watch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          START_DATE: ''
+          END_DATE: ''
+          TIME_OF_DAY: all
+        run: python3 watch.py
+      - name: Send the alert email through GitHub
+        if: steps.watch.outputs.alert_created == 'true'
+        env:
+          ALERT_TITLE: ${{ steps.watch.outputs.alert_title }}
+        run: |
+          git config user.name 'fuchu-written-exam-watch[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "$ALERT_TITLE"
+          git push
+
+  test-notification:
+    if: github.event_name == 'workflow_dispatch' && inputs.test_notification
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create notification test issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 watch.py --test-notification
+
+  test-email:
+    if: github.event_name == 'workflow_dispatch' && inputs.test_email
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare test email
+        id: email
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 watch.py --test-email
+      - name: Send the test email through GitHub
+        env:
+          ALERT_TITLE: ${{ steps.email.outputs.alert_title }}
+        run: |
+          git config user.name 'fuchu-written-exam-watch[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "$ALERT_TITLE"
+          git push
