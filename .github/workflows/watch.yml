@@ -62,6 +62,11 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit --allow-empty -m "$ALERT_TITLE"
           git push
+      - name: Record successful alert delivery
+        if: steps.watch.outputs.alert_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 watch.py --mark-delivered
 
   test-notification:
     if: github.event_name == 'workflow_dispatch' && inputs.test_notification

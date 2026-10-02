@@ -145,6 +145,38 @@ def set_workflow_output(name, value):
             output.write(f"{name}={value.replace(chr(10), ' ')}\n")
 
 
+def pending_alert(state):
+    """Return the alert awaiting a successful notification push, if any."""
+    pending = state.get("pending")
+    if pending is None:
+        return None
+    if not isinstance(pending, dict):
+        raise RuntimeError("Notification state issue has invalid pending alert")
+    keys = pending.get("keys")
+    title = pending.get("title")
+    if (
+        not isinstance(keys, list)
+        or not keys
+        or not all(isinstance(key, str) for key in keys)
+        or not isinstance(title, str)
+        or not title
+    ):
+        raise RuntimeError("Notification state issue has invalid pending alert")
+    return {"keys": sorted(set(keys)), "title": title}
+
+
+def mark_alert_delivered():
+    """Persist delivery only after the workflow has successfully pushed its email commit."""
+    issue_number, state = load_state()
+    pending = pending_alert(state)
+    if pending is None:
+        raise RuntimeError("No pending alert to mark as delivered")
+    sent = set(state.get("issue_sent", []))
+    sent.update(pending["keys"])
+    save_state(issue_number, {"issue_sent": sorted(sent)})
+    print(f"Delivery recorded for {len(pending['keys'])} slots")
+
+
 def required_environment():
     missing = [name for name in ("GITHUB_REPOSITORY", "GH_TOKEN") if not os.getenv(name)]
     if missing:
@@ -170,6 +202,9 @@ def run():
         set_workflow_output("alert_title", "【通知テスト】府中・本免学科試験")
         print("Email notification test prepared")
         return
+    if "--mark-delivered" in sys.argv:
+        mark_alert_delivered()
+        return
     if TIME_OF_DAY not in ("all", "morning", "afternoon"):
         raise RuntimeError("TIME_OF_DAY must be all, morning, or afternoon")
 
@@ -179,8 +214,15 @@ def run():
     if end < start or end > today + dt.timedelta(days=30):
         raise RuntimeError("END_DATE must be within the next 30 days and after START_DATE")
 
-    slots = get_open_slots(start, end)
     issue_number, state = load_state()
+    waiting = pending_alert(state)
+    if waiting:
+        set_workflow_output("alert_created", "true")
+        set_workflow_output("alert_title", waiting["title"])
+        print(f"Retrying notification for {len(waiting['keys'])} slots")
+        return
+
+    slots = get_open_slots(start, end)
     current = set(slots)
     print(f"Open slots: {len(current)}")
 
@@ -194,12 +236,16 @@ def run():
             title,
             message_for(slots, pending),
         )
+        state = {
+            "issue_sent": sorted(previous),
+            "pending": {"keys": sorted(pending), "title": title},
+        }
+        save_state(issue_number, state)
         set_workflow_output("alert_created", "true")
         set_workflow_output("alert_title", title)
-        previous.update(pending)
-        print(f"GitHub issue: notified {len(pending)} slots")
-    state = {"issue_sent": sorted(previous)}
-    save_state(issue_number, state)
+        print(f"GitHub issue: prepared {len(pending)} slots for notification")
+        return
+    save_state(issue_number, {"issue_sent": sorted(previous)})
 
 
 if __name__ == "__main__":
