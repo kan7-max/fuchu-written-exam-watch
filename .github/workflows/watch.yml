@@ -1,7 +1,7 @@
 name: Fuchu written exam slot watch
 
 on:
-  # Best-effort fallback. The external scheduler dispatches this workflow every minute.
+  # GitHub's best-effort schedule; GitHub does not guarantee exact execution times.
   schedule:
     - cron: '2/5 * * * *'
   workflow_dispatch:
