@@ -17,6 +17,7 @@ Gmail・iCloudのパスワードやメールAPIキーは不要です。GitHub Ac
 ## 運用上の注意
 
 - リポジトリとIssueは公開です。空き枠の日時はIssueと通知用コミットのメッセージに表示されます。個人情報や認証情報は書き込みません。
+- 空き枠メールのプッシュが失敗した場合、次回実行で再送します。監視自体が失敗した場合は、正常復帰するまでエラー通知を1回だけ送ります。
 - GitHubのプッシュ通知メールはリポジトリのEmail notifications設定、メールの振り分け、GitHub側の配信状況に依存します。[公式設定の説明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/about-email-notifications-for-pushes-to-your-repository)
 - GitHubの定期実行は遅延する場合があり、時刻どおりの通知は保証されません。公開リポジトリでは60日間リポジトリに活動がないと定期実行が無効になります。[スケジュールの仕様](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)
 - 監視は受験条件に合う方だけが使用してください。[警視庁の学科試験案内](https://www.keishicho.metro.tokyo.lg.jp/menkyo/menkyo/web.html)

@@ -173,8 +173,24 @@ def mark_alert_delivered():
         raise RuntimeError("No pending alert to mark as delivered")
     sent = set(state.get("issue_sent", []))
     sent.update(pending["keys"])
-    save_state(issue_number, {"issue_sent": sorted(sent)})
+    state.pop("pending", None)
+    state.pop("failure_notified", None)
+    state["issue_sent"] = sorted(sent)
+    save_state(issue_number, state)
     print(f"Delivery recorded for {len(pending['keys'])} slots")
+
+
+def report_failure():
+    """Prepare one email alert for a run failure until a later run recovers."""
+    issue_number, state = load_state()
+    if state.get("failure_notified"):
+        print("Failure alert is already recorded")
+        return
+    state["failure_notified"] = True
+    save_state(issue_number, state)
+    set_workflow_output("alert_created", "true")
+    set_workflow_output("alert_title", "【監視エラー】府中・本免学科試験")
+    print("Failure notification prepared")
 
 
 def required_environment():
@@ -204,6 +220,9 @@ def run():
         return
     if "--mark-delivered" in sys.argv:
         mark_alert_delivered()
+        return
+    if "--report-failure" in sys.argv:
+        report_failure()
         return
     if TIME_OF_DAY not in ("all", "morning", "afternoon"):
         raise RuntimeError("TIME_OF_DAY must be all, morning, or afternoon")

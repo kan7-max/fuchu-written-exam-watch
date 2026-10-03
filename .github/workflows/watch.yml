@@ -47,6 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check slots and notify
         id: watch
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           START_DATE: ''
@@ -67,6 +68,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 watch.py --mark-delivered
+      - name: Prepare one monitoring-failure email
+        if: steps.watch.outcome == 'failure' || failure()
+        id: failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 watch.py --report-failure
+      - name: Send the monitoring-failure email through GitHub
+        if: (steps.watch.outcome == 'failure' || failure()) && steps.failure.outputs.alert_created == 'true'
+        env:
+          ALERT_TITLE: ${{ steps.failure.outputs.alert_title }}
+        run: |
+          git config user.name 'fuchu-written-exam-watch[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "$ALERT_TITLE"
+          git push
+      - name: Mark the workflow as failed
+        if: steps.watch.outcome == 'failure' || failure()
+        run: exit 1
 
   test-notification:
     if: github.event_name == 'workflow_dispatch' && inputs.test_notification
