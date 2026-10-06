@@ -139,10 +139,10 @@ def message_for(slots, keys):
 
 
 def create_notification_issue(title, body):
-    owner = os.environ["GITHUB_REPOSITORY"].split("/", 1)[0]
-    issue = github("POST", "issues", {"title": title, "body": body, "assignees": [owner]})
-    if owner not in {user["login"] for user in issue.get("assignees", [])}:
-        raise RuntimeError("Notification issue was created without the expected assignee")
+
+    issue = github("POST", "issues", {"title": title, "body": body})
+
+
     print(f"Notification issue: {issue['html_url']}")
 
 
